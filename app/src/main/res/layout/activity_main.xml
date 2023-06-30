@@ -24,4 +24,15 @@
         android:text="Capture Photo"
         android:textColor="@color/white"
         android:background="@color/purple_500"/>
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btnDelete"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginTop="20dp"
+        android:gravity="center_vertical|center_horizontal"
+        android:text="Delete All Photo"
+        android:textColor="@color/white"
+        android:background="@color/purple_500"
+        android:visibility="gone"/>
 </androidx.appcompat.widget.LinearLayoutCompat>
