@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -128,6 +129,10 @@ class MainActivity : ComponentActivity() {
         Log.e("tagMake==", tagMake.toString())
         Log.e("takenByDevice==", takenByDevice.toString())
         Log.e("tagDesc==", tagDesc.toString())
+
+        val tagWith = exifInterface.getAttribute(ExifInterface.TAG_IMAGE_WIDTH)
+        val tagDimensionX = exifInterface.getAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION)
+        Toast.makeText(applicationContext, "tagWith/tagDimensionX = $tagWith, $tagDimensionX", Toast.LENGTH_LONG).show()
     }
 
     private fun setMetadataToImage(currentPhotoPath: String) {
@@ -161,5 +166,4 @@ class MainActivity : ComponentActivity() {
             Log.e("deleteImagesFromInternalMemory==", "file does not exist")
         }
     }
-
 }
