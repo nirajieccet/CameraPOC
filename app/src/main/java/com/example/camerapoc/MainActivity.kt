@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.exifinterface.media.ExifInterface
 import com.example.camerapoc.databinding.ActivityMainBinding
 import java.io.File
@@ -24,7 +25,6 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
 
 class MainActivity : ComponentActivity() {
 
@@ -39,6 +39,9 @@ class MainActivity : ComponentActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        /*This is only for saving zip file to download folder*/
+        requestExternalStoragePermission()
+
         setUpLauncher()
 
         binding.btnCapturePhoto.setOnClickListener {
@@ -49,7 +52,24 @@ class MainActivity : ComponentActivity() {
             deleteImagesFromInternalMemory()
         }
 
+        //get all file and make a zip file and save it to download folder
+        binding.btnZipAllImages.setOnClickListener {
+            getFilePathAndSaveItToDownloadFolder()
+        }
+
         //getMetaDataFromAsset()
+    }
+
+    /*This is only for saving zip file to download folder*/
+    private fun requestExternalStoragePermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                33
+            )
+        }
     }
 
     private fun requestCameraPermission() {
@@ -83,7 +103,7 @@ class MainActivity : ComponentActivity() {
                     )
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
                     cameraLauncher!!.launch(takePictureIntent)
-                }catch (e: Exception) {
+                } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
@@ -142,7 +162,6 @@ class MainActivity : ComponentActivity() {
         exifInterface.setAttribute("ImageDescription", "Your image description")
 
         exifInterface.saveAttributes()
-
     }
 
     private fun getMetaDataFromAsset() {
@@ -164,6 +183,29 @@ class MainActivity : ComponentActivity() {
             }
         } else {
             Log.e("deleteImagesFromInternalMemory==", "file does not exist")
+        }
+    }
+
+    private fun getFilePathAndSaveItToDownloadFolder() {
+        val directoryPath = applicationContext.filesDir
+        val directory = File(directoryPath, "")
+
+        if (directory.exists() && directory.isDirectory) {
+            val imageFiles = directory.listFiles { file ->
+                file.isFile && file.extension.toLowerCase() in listOf("jpg", "jpeg", "png", "gif")
+            }
+            if (!imageFiles.isNullOrEmpty()) {
+                val zipFileName = "images.zip"
+                val zipFilePath = File(directory, zipFileName)
+
+                ZipFileUtils.makeZipFile(zipFilePath, imageFiles)
+
+                ZipFileUtils.saveZipFileToDownloads(applicationContext, zipFilePath.toUri(), zipFileName)
+            } else {
+                Log.e("==", "empty file")
+            }
+        } else {
+            Log.e("==", "no files")
         }
     }
 }
