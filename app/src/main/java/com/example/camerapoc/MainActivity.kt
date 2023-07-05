@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -143,24 +142,31 @@ class MainActivity : ComponentActivity() {
 
     private fun getMetadata(currentPhotoPath: String) {
         val exifInterface = ExifInterface(currentPhotoPath)
-        val takenByDevice = exifInterface.getAttribute("TakenByDevice")
-        val tagMake = exifInterface.getAttribute(ExifInterface.TAG_MAKE)
-        val tagDesc = exifInterface.getAttribute("ImageDescription")
-        Log.e("tagMake==", tagMake.toString())
-        Log.e("takenByDevice==", takenByDevice.toString())
-        Log.e("tagDesc==", tagDesc.toString())
-
-        val tagWith = exifInterface.getAttribute(ExifInterface.TAG_IMAGE_WIDTH)
-        val tagDimensionX = exifInterface.getAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION)
-        Toast.makeText(applicationContext, "tagWith/tagDimensionX = $tagWith, $tagDimensionX", Toast.LENGTH_LONG).show()
+        printLog(exifInterface)
     }
+    private fun printLog(exifInterface: ExifInterface) {
+        Log.e("TAG_MAKE==", exifInterface.getAttribute(ExifInterface.TAG_MAKE).toString())
+        Log.e("TAG_IMAGE_DESCRIPTION==", exifInterface.getAttribute("ImageDescription").toString())
+        Log.e("TakenByDevice==", exifInterface.getAttribute("TakenByDevice").toString())
 
+        Log.e("TAG_IMAGE_WIDTH==", exifInterface.getAttribute(ExifInterface.TAG_IMAGE_WIDTH).toString())
+        Log.e("TAG_PIXEL_X_DIMENSION==", exifInterface.getAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION).toString())
+        Log.e("TAG_PIXEL_Y_DIMENSION==", exifInterface.getAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION).toString())
+        Log.e("TAG_ORIENTATION==", exifInterface.getAttribute(ExifInterface.TAG_ORIENTATION).toString())
+        Log.e("TAG_CAMERA_OWNER_NAME==", exifInterface.getAttribute(ExifInterface.TAG_CAMERA_OWNER_NAME).toString())
+        Log.e("TAG_GPS_ALTITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_ALTITUDE).toString())
+
+        Log.e("TAG_GPS_ALTITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_ALTITUDE).toString())
+        Log.e("TAG_GPS_ALTITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_ALTITUDE).toString())
+        Log.e("TAG_GPS_LATITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_LATITUDE).toString())
+        Log.e("TAG_GPS_LONGITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_LONGITUDE).toString())
+        Log.e("ORIENTATION_ROTATE_180==", exifInterface.getAttribute(ExifInterface.ORIENTATION_ROTATE_180.toString()).toString())
+    }
     private fun setMetadataToImage(currentPhotoPath: String) {
         val exifInterface = ExifInterface(currentPhotoPath)
         exifInterface.setAttribute(ExifInterface.TAG_MAKE, "Custom Make Model")
         exifInterface.setAttribute("TakenByDevice", "Redmi5g")
         exifInterface.setAttribute("ImageDescription", "Your image description")
-
         exifInterface.saveAttributes()
     }
 
@@ -199,8 +205,15 @@ class MainActivity : ComponentActivity() {
                 val zipFilePath = File(directory, zipFileName)
 
                 ZipFileUtils.makeZipFile(zipFilePath, imageFiles)
-
-                ZipFileUtils.saveZipFileToDownloads(applicationContext, zipFilePath.toUri(), zipFileName)
+                try {
+                    ZipFileUtils.saveZipFileToDownloads(
+                        applicationContext,
+                        zipFilePath.toUri(),
+                        zipFileName
+                    )
+                } catch (e:Exception) {
+                    Log.e("Exception==", e.message.toString())
+                }
             } else {
                 Log.e("==", "empty file")
             }
