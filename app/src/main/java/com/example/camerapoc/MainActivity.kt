@@ -15,7 +15,9 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Looper
 import android.provider.MediaStore
+import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +27,11 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.exifinterface.media.ExifInterface
 import com.example.camerapoc.databinding.ActivityMainBinding
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -36,13 +43,13 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var binding : ActivityMainBinding
     private var cameraLauncher: ActivityResultLauncher<Intent>? = null
+    private lateinit var mFusedLocationClient: FusedLocationProviderClient
 
     private var currentPhotoPath: String = ""
 
     private val REQUEST_CODE_PERMISSION = 100
     private val REQUIRED_PERMISSIONS = arrayOf(
         Manifest.permission.CAMERA,
-        Manifest.permission.ACCESS_MEDIA_LOCATION,
         Manifest.permission.ACCESS_FINE_LOCATION
     )
     private lateinit var locationManager: LocationManager
@@ -53,6 +60,7 @@ class MainActivity : ComponentActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         /*This is only for saving zip file to download folder*/
         //requestExternalStoragePermission()
         if (!allPermissionsGranted()) {
@@ -90,7 +98,8 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSION) {
             if (allPermissionsGranted()) {
-                getLocation()
+                //getLocation()
+                getLocationUsingFusedProvider()
             }
         }
     }
@@ -347,6 +356,45 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun getLocationUsingFusedProvider() {
+        if (isLocationEnabled()) {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSION)
+                return
+            } else {
+                val locationRequest = LocationRequest().setInterval(5000).setFastestInterval(5000)
+                    .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                mFusedLocationClient.requestLocationUpdates(
+                    locationRequest,
+                    object : LocationCallback() {
+                        override fun onLocationResult(locationResult: LocationResult) {
+                            super.onLocationResult(locationResult)
+                            Log.e("locationResult",locationResult.toString())
+                            for (location in locationResult.locations) {
+                                Log.e("location.latitude",location.latitude.toString())
+                                Log.e("location.longitude",location.longitude.toString())
+                            }
+                            // Things don't end here
+                            // You may also update the location on your web app
+                        }
+                    },
+                    Looper.getMainLooper()
+                )
+            }
+        } else {
+            Toast.makeText(this, "Please turn on location", Toast.LENGTH_LONG).show()
+            val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+            startActivity(intent)
+        }
+    }
+
     private fun shareImage() {
         val shareIntent = Intent(Intent.ACTION_SEND)
         shareIntent.type = "image/jpeg"
@@ -364,7 +412,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        getLocation()
+//        getLocation()
+        getLocationUsingFusedProvider()
     }
 
     override fun onDestroy() {
@@ -383,6 +432,14 @@ class MainActivity : ComponentActivity() {
         jsonObject.put("id", 1)
         jsonObject.put("title", "title")
         return jsonObject
+    }
+
+    private fun isLocationEnabled(): Boolean {
+        val locationManager: LocationManager =
+            getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(
+            LocationManager.NETWORK_PROVIDER
+        )
     }
 
 }
