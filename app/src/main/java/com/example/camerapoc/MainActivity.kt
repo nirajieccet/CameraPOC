@@ -25,6 +25,7 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.exifinterface.media.ExifInterface
 import com.example.camerapoc.databinding.ActivityMainBinding
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -223,7 +224,13 @@ class MainActivity : ComponentActivity() {
 
         val orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
         Log.e("orientation==", exifInterface.getAttribute(ExifInterface.TAG_ORIENTATION).toString())
-
+        val deviceOrientation = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270
+            else -> 0 // Default to 0 degrees for undefined or unsupported orientation
+        }
+        Log.e("_MyCustomTag==", exifInterface.getAttribute(ExifInterface.TAG_USER_COMMENT).toString())
     }
     private fun setMetadataToImage(currentPhotoPath: String) {
         val exifInterface = ExifInterface(currentPhotoPath)
@@ -237,6 +244,8 @@ class MainActivity : ComponentActivity() {
         } else {
             Log.e("latLong==", "null")
         }
+
+        exifInterface.setAttribute(ExifInterface.TAG_USER_COMMENT, getSampleJsonData().toString())
 
         exifInterface.setAttribute(ExifInterface.TAG_MAKE, "Custom Make Model")
         exifInterface.setAttribute(ExifInterface.TAG_MODEL, "Custom "+Build.MANUFACTURER + " " + Build.MODEL)
@@ -367,6 +376,13 @@ class MainActivity : ComponentActivity() {
         ) {
             locationManager.removeUpdates(locationListener)
         }
+    }
+
+    private fun getSampleJsonData(): JSONObject {
+        val jsonObject = JSONObject()
+        jsonObject.put("id", 1)
+        jsonObject.put("title", "title")
+        return jsonObject
     }
 
 }

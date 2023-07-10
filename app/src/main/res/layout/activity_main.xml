@@ -45,5 +45,5 @@
         android:text="Zip All Photo"
         android:textColor="@color/white"
         android:background="@color/purple_500"
-        android:visibility="visible"/>
+        android:visibility="gone"/>
 </androidx.appcompat.widget.LinearLayoutCompat>
