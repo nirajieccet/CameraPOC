@@ -1,13 +1,19 @@
 package com.example.camerapoc
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 //import android.media.ExifInterface
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -30,8 +36,16 @@ class MainActivity : ComponentActivity() {
     private lateinit var binding : ActivityMainBinding
     private var cameraLauncher: ActivityResultLauncher<Intent>? = null
 
-    private val CAMERA_PERMISSION_REQUEST = 2
     private var currentPhotoPath: String = ""
+
+    private val REQUEST_CODE_PERMISSION = 100
+    private val REQUIRED_PERMISSIONS = arrayOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.ACCESS_MEDIA_LOCATION,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    )
+    private lateinit var locationManager: LocationManager
+    private lateinit var locationListener: LocationListener
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,12 +53,15 @@ class MainActivity : ComponentActivity() {
         setContentView(binding.root)
 
         /*This is only for saving zip file to download folder*/
-        requestExternalStoragePermission()
+        //requestExternalStoragePermission()
+        if (!allPermissionsGranted()) {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSION)
+        }
 
         setUpLauncher()
 
         binding.btnCapturePhoto.setOnClickListener {
-            requestCameraPermission()
+            launchCameraIntent()
         }
 
         binding.btnDelete.setOnClickListener {
@@ -53,42 +70,72 @@ class MainActivity : ComponentActivity() {
 
         //get all file and make a zip file and save it to download folder
         binding.btnZipAllImages.setOnClickListener {
-            getFilePathAndSaveItToDownloadFolder()
+            //getFilePathAndSaveItToDownloadFolder()
+            shareImage()
         }
 
         //getMetaDataFromAsset()
     }
 
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSION) {
+            if (allPermissionsGranted()) {
+                getLocation()
+            }
+        }
+    }
+
+    private fun accessMediaLocation() {
+        // Get the media Uri
+        val mediaUri: Uri = currentPhotoPath.toUri()//MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+
+        // Perform any necessary queries or operations with the media Uri
+        // For example, you can use a ContentResolver to query the media and retrieve its details
+
+        // Once you have the original Uri, you can retrieve the geo location information using ExifInterface
+        val exifInterface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // For Android 10 (API 29) and above, use the original Uri obtained from the media
+            val originalUri = MediaStore.setRequireOriginal(mediaUri)
+            contentResolver.openInputStream(originalUri)?.let { ExifInterface(it) }
+        } else {
+            // For devices below Android 10, use the media Uri directly
+            contentResolver.openInputStream(mediaUri)?.let { ExifInterface(it) }
+        }
+
+        // Read the geo location information from ExifInterface
+        val latitude = exifInterface?.getAttribute(ExifInterface.TAG_GPS_LATITUDE)
+        val longitude = exifInterface?.getAttribute(ExifInterface.TAG_GPS_LONGITUDE)
+
+        // Handle the retrieved geo location information as needed
+        Log.d("TAG==", "Latitude: $latitude, Longitude: $longitude")
+    }
+
     /*This is only for saving zip file to download folder*/
     private fun requestExternalStoragePermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
                 33
             )
         }
     }
-
-    private fun requestCameraPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CAMERA),
-                CAMERA_PERMISSION_REQUEST
-            )
-        } else {
-            launchCameraIntent()
-        }
-    }
     private fun launchCameraIntent() {
-        val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)//INTENT_ACTION_STILL_IMAGE_CAMERA give option to choose app for open camera
         if (takePictureIntent.resolveActivity(packageManager) != null) {
             val photoFile: File? = try {
                 createFileInInternalStorage()
-//                createFileInExternalStorage()
+                //createFileInExternalStorage()
             } catch (e: IOException) {
                 e.printStackTrace()
                 null
@@ -115,6 +162,7 @@ class MainActivity : ComponentActivity() {
         try {
             file.createNewFile()
             currentPhotoPath = file.absolutePath
+            Log.e("currentPhotoPath==", currentPhotoPath)
         } catch (e: IOException) {
             e.printStackTrace()
         }
@@ -127,6 +175,7 @@ class MainActivity : ComponentActivity() {
 
         var file = File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir)
         currentPhotoPath = file.absolutePath
+        Log.e("currentPhotoPath==", currentPhotoPath)
         return file
     }
     private fun setUpLauncher() {
@@ -136,6 +185,7 @@ class MainActivity : ComponentActivity() {
                 val myBitmap = BitmapFactory.decodeFile(currentPhotoPath)
                 binding.imgView.setImageBitmap(myBitmap)
                 getMetadata(currentPhotoPath)
+                //accessMediaLocation()
             }
         }
     }
@@ -156,17 +206,42 @@ class MainActivity : ComponentActivity() {
         Log.e("TAG_CAMERA_OWNER_NAME==", exifInterface.getAttribute(ExifInterface.TAG_CAMERA_OWNER_NAME).toString())
         Log.e("TAG_GPS_ALTITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_ALTITUDE).toString())
 
-        Log.e("TAG_GPS_ALTITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_ALTITUDE).toString())
-        Log.e("TAG_GPS_ALTITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_ALTITUDE).toString())
+        Log.e("TAG_GPS_ALTITUDE_REF==", exifInterface.getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF).toString())
+        Log.e("TAG_GPS_LATITUDE_REF==", exifInterface.getAttribute(ExifInterface.TAG_GPS_LATITUDE_REF).toString())
         Log.e("TAG_GPS_LATITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_LATITUDE).toString())
         Log.e("TAG_GPS_LONGITUDE==", exifInterface.getAttribute(ExifInterface.TAG_GPS_LONGITUDE).toString())
         Log.e("ORIENTATION_ROTATE_180==", exifInterface.getAttribute(ExifInterface.ORIENTATION_ROTATE_180.toString()).toString())
+        Log.e("TAG_MODEL==", exifInterface.getAttribute(ExifInterface.TAG_MODEL).toString())
+        Log.e("TAG_SOFTWARE==", exifInterface.getAttribute(ExifInterface.TAG_SOFTWARE).toString())
+        Log.e("TAG_DATETIME==", exifInterface.getAttribute(ExifInterface.TAG_DATETIME).toString())
+        Log.e("TAG_DEVICE_SETTING_DESCRIPTION==", exifInterface.getAttribute(ExifInterface.TAG_DEVICE_SETTING_DESCRIPTION).toString())
+        Log.e("TAG_GPS_DATESTAMP==", exifInterface.getAttribute(ExifInterface.TAG_GPS_DATESTAMP).toString())
+
+        Log.e("TAG_GPS_IMG_DIRECTION==", exifInterface.getAttribute(ExifInterface.TAG_GPS_IMG_DIRECTION).toString())
+        Log.e("TAG_GPS_IMG_DIRECTION_REF==", exifInterface.getAttribute(ExifInterface.TAG_GPS_IMG_DIRECTION_REF).toString())
+        Log.e("TAG_GPS_STATUS==", exifInterface.getAttribute(ExifInterface.TAG_GPS_STATUS).toString())
+
+        val orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
+        Log.e("orientation==", exifInterface.getAttribute(ExifInterface.TAG_ORIENTATION).toString())
+
     }
     private fun setMetadataToImage(currentPhotoPath: String) {
         val exifInterface = ExifInterface(currentPhotoPath)
+
+        val latLongObj = exifInterface.latLong
+        if(latLongObj != null){
+            Log.e("latLongObj[0]==", latLongObj[0].toString())
+            Log.e("latLongObj[0]==", latLongObj[1].toString())
+//            exifInterface.setAttribute(ExifInterface.TAG_GPS_LATITUDE, latLongObj[0].toString())
+//            exifInterface.setAttribute(ExifInterface.TAG_GPS_LONGITUDE, latLongObj[0].toString())
+        } else {
+            Log.e("latLong==", "null")
+        }
+
         exifInterface.setAttribute(ExifInterface.TAG_MAKE, "Custom Make Model")
+        exifInterface.setAttribute(ExifInterface.TAG_MODEL, "Custom "+Build.MANUFACTURER + " " + Build.MODEL)
         exifInterface.setAttribute("TakenByDevice", "Redmi5g")
-        exifInterface.setAttribute("ImageDescription", "Your image description")
+        exifInterface.setAttribute("ImageDescription", "Custom Your image description")
         exifInterface.saveAttributes()
     }
 
@@ -221,4 +296,77 @@ class MainActivity : ComponentActivity() {
             Log.e("==", "no files")
         }
     }
+
+    private fun doubleToRationalString(value: Double): String? {
+        val degrees = value.toLong()
+        val minutesSeconds = (value - degrees) * 60.0
+        val minutes = minutesSeconds.toLong()
+        val seconds = Math.round((minutesSeconds - minutes) * 60.0)
+        return "$degrees/1,$minutes/1,$seconds/1"
+    }
+
+    private fun getLocation() {
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        locationListener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                val latitude = location.latitude
+                val longitude = location.longitude
+                Log.e("onLocationChanged==", "Latitude: $latitude, Longitude: $longitude")
+            }
+
+            override fun onProviderDisabled(provider: String) {}
+
+            override fun onProviderEnabled(provider: String) {}
+
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+        }
+
+        // Request location updates
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                0,
+                0f,
+                locationListener,
+                Looper.getMainLooper()
+            )
+        }
+    }
+
+    private fun shareImage() {
+        val shareIntent = Intent(Intent.ACTION_SEND)
+        shareIntent.type = "image/jpeg"
+
+        // Get the file URI using FileProvider
+        val fileUri = FileProvider.getUriForFile(this, "$packageName.provider", File(currentPhotoPath))
+
+        shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri)
+
+        // Grant permission to the receiving app
+        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+        startActivity(Intent.createChooser(shareIntent, "Share Image"))
+    }
+
+    override fun onResume() {
+        super.onResume()
+        getLocation()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            locationManager.removeUpdates(locationListener)
+        }
+    }
+
 }
