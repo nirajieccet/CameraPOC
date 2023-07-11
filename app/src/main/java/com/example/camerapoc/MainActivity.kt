@@ -1,6 +1,7 @@
 package com.example.camerapoc
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -423,7 +424,7 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            locationManager.removeUpdates(locationListener)
+            //locationManager.removeUpdates(locationListener)
         }
     }
 
@@ -441,5 +442,4 @@ class MainActivity : ComponentActivity() {
             LocationManager.NETWORK_PROVIDER
         )
     }
-
 }
