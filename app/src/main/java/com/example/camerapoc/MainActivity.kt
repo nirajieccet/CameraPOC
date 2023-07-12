@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -56,10 +60,27 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationManager: LocationManager
     private lateinit var locationListener: LocationListener
 
+    private lateinit var sensorEventListener: SensorEventListener
+    private lateinit var sensorManager: SensorManager
+    private var azimuthDegrees = 0.0F
+    private var pitchDegrees = 0.0F
+    private var rollDegrees = 0.0F
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+
+        val sensorType = Sensor.TYPE_GYROSCOPE // Replace with the desired sensor type
+        val sensor = sensorManager.getDefaultSensor(sensorType)
+        if(sensor != null) {
+            Log.e("sensor==", "not null")
+            defineSensorListener()
+        }else {
+            Log.e("sensor==", "null")
+        }
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         /*This is only for saving zip file to download folder*/
@@ -83,9 +104,10 @@ class MainActivity : ComponentActivity() {
             //getFilePathAndSaveItToDownloadFolder()
             shareImage()
         }
-
         //getMetaDataFromAsset()
     }
+
+
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
@@ -197,6 +219,10 @@ class MainActivity : ComponentActivity() {
                 binding.imgView.setImageBitmap(myBitmap)
                 getMetadata(currentPhotoPath)
                 //accessMediaLocation()
+
+                Log.e("azimuthDegrees==", azimuthDegrees.toString())
+                Log.e("pitchDegrees==", pitchDegrees.toString())
+                Log.e("rollDegrees==", rollDegrees.toString())
             }
         }
     }
@@ -382,8 +408,6 @@ class MainActivity : ComponentActivity() {
                                 Log.e("location.latitude",location.latitude.toString())
                                 Log.e("location.longitude",location.longitude.toString())
                             }
-                            // Things don't end here
-                            // You may also update the location on your web app
                         }
                     },
                     Looper.getMainLooper()
@@ -426,6 +450,9 @@ class MainActivity : ComponentActivity() {
         ) {
             //locationManager.removeUpdates(locationListener)
         }
+        if(sensorManager != null) {
+            sensorManager.unregisterListener(sensorEventListener)
+        }
     }
 
     private fun getSampleJsonData(): JSONObject {
@@ -441,5 +468,71 @@ class MainActivity : ComponentActivity() {
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(
             LocationManager.NETWORK_PROVIDER
         )
+    }
+
+    private fun defineSensorListener() {
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+
+        sensorEventListener = object : SensorEventListener {
+            private val gravity = FloatArray(3)
+            private val geomagnetic = FloatArray(3)
+            private val gyroscopeValues = FloatArray(3)
+            private val rotationMatrix = FloatArray(9)
+            private val orientationAngles = FloatArray(3)
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+            override fun onSensorChanged(event: SensorEvent?) {
+                when (event?.sensor?.type) {
+                    Sensor.TYPE_ACCELEROMETER -> gravity.apply {
+                        set(0, event.values[0])
+                        set(1, event.values[1])
+                        set(2, event.values[2])
+                    }
+                    Sensor.TYPE_MAGNETIC_FIELD -> geomagnetic.apply {
+                        set(0, event.values[0])
+                        set(1, event.values[1])
+                        set(2, event.values[2])
+                    }
+                    Sensor.TYPE_GYROSCOPE -> gyroscopeValues.apply {
+                        set(0, event.values[0])
+                        set(1, event.values[1])
+                        set(2, event.values[2])
+                    }
+                }
+
+                SensorManager.getRotationMatrix(rotationMatrix, null, gravity, geomagnetic)
+                var orientation = SensorManager.getOrientation(rotationMatrix, orientationAngles)
+                Log.e("orientationsensor==", orientation[0].toDouble().toString())
+
+                val azimuthRadians = orientationAngles[0]
+                azimuthDegrees = Math.toDegrees(azimuthRadians.toDouble()).toFloat()
+                pitchDegrees = Math.toDegrees(orientationAngles[1].toDouble()).toFloat()
+                rollDegrees = Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
+
+                // Use azimuthDegrees, pitchDegrees, and rollDegrees as needed
+            }
+        }
+
+        sensorManager.registerListener(
+            sensorEventListener,
+            accelerometer,
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
+
+        sensorManager.registerListener(
+            sensorEventListener,
+            magnetometer,
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
+
+        sensorManager.registerListener(
+            sensorEventListener,
+            gyroscope,
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
+
     }
 }
